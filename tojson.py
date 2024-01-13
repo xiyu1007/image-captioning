@@ -1,12 +1,12 @@
 import json
-import pandas as pd
 import os
 import random
-from utils.pathchecker import PathChecker
 from colorama import init, Fore
+import pandas as pd
+from utils.pathchecker import PathChecker
+
 # 初始化 colorama
 init(autoreset=True)
-
 
 
 class DatasetConverter:
@@ -28,6 +28,7 @@ class DatasetConverter:
         self.train_ratio = train_ratio
         self.val_ratio = val_ratio
         self.test_ratio = test_ratio
+        self.path_checker = PathChecker()
 
     def convert_to_json(self):
         # 读取CSV文件
@@ -37,9 +38,7 @@ class DatasetConverter:
         data = {'images': []}
 
         # 用于跟踪当前拆分的计数
-        train_count = 0
-        val_count = 0
-        test_count = 0
+        train_count, val_count, test_count = 0, 0, 0
 
         # 根据图片名称组织数据
         for image_name, group in df.groupby('image_name'):
@@ -57,34 +56,42 @@ class DatasetConverter:
 
             image_info = {
                 'split': split_type,
-                'filepath': os.path.join(self.image_folder, str(image_name)),
+                'filepath': os.path.join(self.image_folder, str(image_name)).replace("\\", "/"),
                 'filename': image_name,
-                'sentences': []
+                'sentences': [
+                    {
+                        'tokens': row['comment'].rstrip('.').split(),
+                        'raw': row['comment'].rstrip('.')
+                    }
+                    for _, row in group.iterrows()
+                ]
             }
-
-            # 添加每个评论的信息
-            for _, row in group.iterrows():
-                # 去除评论末尾的 '.'
-                comment_text = row['comment'].rstrip('.')
-                sentence = {
-                    'tokens': comment_text.split(),  # 将评论文本分割为单词列表
-                    'raw': comment_text
-                }
-                image_info['sentences'].append(sentence)
 
             data['images'].append(image_info)
 
-            # 检查是否达到了所需比例，如果达到了，停止循环
-            if train_count >= len(df) * self.train_ratio and val_count >= len(
-                    df) * self.val_ratio and test_count >= len(df) * self.test_ratio:
+            # 检查是否总长度达到 len(df)，如果达到了，停止循环
+            if train_count + val_count + test_count >= len(df):
                 break
+
+            # # 检查是否达到了所需比例，如果达到了，停止循环
+            # if train_count >= len(df) * self.train_ratio and val_count >= len(
+            #         df) * self.val_ratio and test_count >= len(df) * self.test_ratio:
+            #     break
+
+        # 打印拆分数量
+
+        print(Fore.BLUE + f"Total count: {train_count + val_count + test_count}")
+        print(Fore.BLUE + f"Train count: {train_count}")
+        print(Fore.BLUE + f"Validation count: {val_count}")
+        print(Fore.BLUE + f"Test count: {test_count}")
+
         # 示例用法
         # 创建 PathChecker 实例
-        path_checker = PathChecker()
-        self.output_json_path = path_checker.check_and_create_file(self.output_json_path,'json')
+        self.output_json_path = \
+            self.path_checker.check_and_create_file(self.output_json_path, 'json')
+
         # 将数据写入JSON文件
         if self.output_json_path:
-            # 将数据写入JSON文件
             try:
                 with open(self.output_json_path, 'w') as json_file:
                     json.dump(data, json_file, indent=2)
@@ -100,7 +107,7 @@ class DatasetConverter:
 # 使用示例
 csv_path = 'dataset/short_flickr30k_images_datasets/short_results.csv'
 image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-output_json_path = 'dataset/data_to_json'
+output_json_path = 'out_data/data_to_json'
 
 converter = DatasetConverter(csv_path, image_folder, output_json_path)
 converter.convert_to_json()

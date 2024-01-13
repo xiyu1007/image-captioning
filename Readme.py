@@ -1,4 +1,9 @@
-$data
+"""
+数据后带有 # $ 表示Readme中有其数据结构展示
+"""
+
+# $data
+"""
 image_name|comment_number|comment
 1000092795.jpg| 0| Two young guys with shaggy hair look at their hands while hanging out in the yard .
 1000092795.jpg| 1| Two young , White males are outside near many bushes .
@@ -10,9 +15,9 @@ image_name|comment_number|comment
 10002456.jpg| 2| Two men working on a machine wearing hard hats .
 10002456.jpg| 3| Four men on top of a tall structure .
 10002456.jpg| 4| Three men on a large rig .
-
-
-$json
+"""
+# $json
+"""
 {
   "images": [
     {
@@ -42,3 +47,14 @@ $json
       ]
     }
 }
+"""
+# $word_freq( Counter() )
+"""
+Counter({'a': 112, 'in': 52, 'A': 42, 'on': 36, 'the': 28, 'of': 27})
+"""
+# $word_map
+"""
+{'Two': 1, 'young': 2, 'guys': 3, 'with': 4,
+ 'at': 5, '<unk>': 67, '<start>': 68, '<end>': 69, '<pad>': 0}
+"""
+

@@ -3,7 +3,8 @@ import numpy as np
 import h5py
 import json
 import torch
-from scipy.misc import imread, imresize
+# from scipy.misc import imread, imresize
+import pathchecker
 from tqdm import tqdm
 from collections import Counter
 from random import seed, choice, sample
@@ -36,7 +37,7 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     val_image_captions = []
     test_image_paths = []
     test_image_captions = []
-    word_freq = Counter()
+    word_freq = Counter()  # $
 
     for img in data['images']:
         captions = []
@@ -67,7 +68,7 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     assert len(val_image_paths) == len(val_image_captions)
     assert len(test_image_paths) == len(test_image_captions)
 
-    # Create word map
+    # Create word map # $ 词映射
     words = [w for w in word_freq.keys() if word_freq[w] > min_word_freq]
     word_map = {k: v + 1 for v, k in enumerate(words)}
     word_map['<unk>'] = len(word_map) + 1
@@ -75,75 +76,89 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     word_map['<end>'] = len(word_map) + 1
     word_map['<pad>'] = 0
 
-    # Create a base/root name for all output files
-    base_filename = dataset + '_' + str(captions_per_image) + '_cap_per_img_' + str(min_word_freq) + '_min_word_freq'
+    print(word_map)
 
-    # Save word map to a JSON
-    with open(os.path.join(output_folder, 'WORDMAP_' + base_filename + '.json'), 'w') as j:
-        json.dump(word_map, j)
+    # # Create a base/root name for all output files
+    # base_filename = dataset + '_' + str(captions_per_image) + '_cap_per_img_' + str(min_word_freq) + '_min_word_freq'
+    #
+    # # Save word map to a JSON
+    # with open(os.path.join(output_folder, 'WORDMAP_' + base_filename + '.json'), 'w') as j:
+    #     json.dump(word_map, j)
+    #
+    # # Sample captions for each image, save images to HDF5 file, and captions and their lengths to JSON files
+    # seed(123)
+    # for impaths, imcaps, split in [(train_image_paths, train_image_captions, 'TRAIN'),
+    #                                (val_image_paths, val_image_captions, 'VAL'),
+    #                                (test_image_paths, test_image_captions, 'TEST')]:
+    #
+    #     with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'a') as h:
+    #         # Make a note of the number of captions we are sampling per image
+    #         h.attrs['captions_per_image'] = captions_per_image
+    #
+    #         # Create dataset inside HDF5 file to store images
+    #         images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
+    #
+    #         print("\nReading %s images and captions, storing to file...\n" % split)
+    #
+    #         enc_captions = []
+    #         caplens = []
+    #
+    #         for i, path in enumerate(tqdm(impaths)):
+    #
+    #             # Sample captions
+    #             if len(imcaps[i]) < captions_per_image:
+    #                 captions = imcaps[i] + [choice(imcaps[i]) for _ in range(captions_per_image - len(imcaps[i]))]
+    #             else:
+    #                 captions = sample(imcaps[i], k=captions_per_image)
+    #
+    #             # Sanity check
+    #             assert len(captions) == captions_per_image
+    #
+    #             # Read images
+    #             img = imread(impaths[i])
+    #             if len(img.shape) == 2:
+    #                 img = img[:, :, np.newaxis]
+    #                 img = np.concatenate([img, img, img], axis=2)
+    #             img = imresize(img, (256, 256))
+    #             img = img.transpose(2, 0, 1)
+    #             assert img.shape == (3, 256, 256)
+    #             assert np.max(img) <= 255
+    #
+    #             # Save image to HDF5 file
+    #             images[i] = img
+    #
+    #             for j, c in enumerate(captions):
+    #                 # Encode captions
+    #                 enc_c = [word_map['<start>']] + [word_map.get(word, word_map['<unk>']) for word in c] + [
+    #                     word_map['<end>']] + [word_map['<pad>']] * (max_len - len(c))
+    #
+    #                 # Find caption lengths
+    #                 c_len = len(c) + 2
+    #
+    #                 enc_captions.append(enc_c)
+    #                 caplens.append(c_len)
+    #
+    #         # Sanity check
+    #         assert images.shape[0] * captions_per_image == len(enc_captions) == len(caplens)
+    #
+    #         # Save encoded captions and their lengths to JSON files
+    #         with open(os.path.join(output_folder, split + '_CAPTIONS_' + base_filename + '.json'), 'w') as j:
+    #             json.dump(enc_captions, j)
+    #
+    #         with open(os.path.join(output_folder, split + '_CAPLENS_' + base_filename + '.json'), 'w') as j:
+    #             json.dump(caplens, j)
 
-    # Sample captions for each image, save images to HDF5 file, and captions and their lengths to JSON files
-    seed(123)
-    for impaths, imcaps, split in [(train_image_paths, train_image_captions, 'TRAIN'),
-                                   (val_image_paths, val_image_captions, 'VAL'),
-                                   (test_image_paths, test_image_captions, 'TEST')]:
 
-        with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'a') as h:
-            # Make a note of the number of captions we are sampling per image
-            h.attrs['captions_per_image'] = captions_per_image
+pathchecker = pathchecker.PathChecker()
 
-            # Create dataset inside HDF5 file to store images
-            images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
+# 使用示例
+json_path = f'..out_data\\data_to_json\\short_flickr30k_images_datasets.json'
+image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
+output_path = 'out_data/data_to_json'
+if pathchecker.check_path_exists(json_path):
+    json_path = pathchecker.process_path(json_path)
 
-            print("\nReading %s images and captions, storing to file...\n" % split)
-
-            enc_captions = []
-            caplens = []
-
-            for i, path in enumerate(tqdm(impaths)):
-
-                # Sample captions
-                if len(imcaps[i]) < captions_per_image:
-                    captions = imcaps[i] + [choice(imcaps[i]) for _ in range(captions_per_image - len(imcaps[i]))]
-                else:
-                    captions = sample(imcaps[i], k=captions_per_image)
-
-                # Sanity check
-                assert len(captions) == captions_per_image
-
-                # Read images
-                img = imread(impaths[i])
-                if len(img.shape) == 2:
-                    img = img[:, :, np.newaxis]
-                    img = np.concatenate([img, img, img], axis=2)
-                img = imresize(img, (256, 256))
-                img = img.transpose(2, 0, 1)
-                assert img.shape == (3, 256, 256)
-                assert np.max(img) <= 255
-
-                # Save image to HDF5 file
-                images[i] = img
-
-                for j, c in enumerate(captions):
-                    # Encode captions
-                    enc_c = [word_map['<start>']] + [word_map.get(word, word_map['<unk>']) for word in c] + [
-                        word_map['<end>']] + [word_map['<pad>']] * (max_len - len(c))
-
-                    # Find caption lengths
-                    c_len = len(c) + 2
-
-                    enc_captions.append(enc_c)
-                    caplens.append(c_len)
-
-            # Sanity check
-            assert images.shape[0] * captions_per_image == len(enc_captions) == len(caplens)
-
-            # Save encoded captions and their lengths to JSON files
-            with open(os.path.join(output_folder, split + '_CAPTIONS_' + base_filename + '.json'), 'w') as j:
-                json.dump(enc_captions, j)
-
-            with open(os.path.join(output_folder, split + '_CAPLENS_' + base_filename + '.json'), 'w') as j:
-                json.dump(caplens, j)
+create_input_files('flickr30k', json_path, image_folder, 2, 3, output_path)
 
 
 def init_embedding(embeddings):

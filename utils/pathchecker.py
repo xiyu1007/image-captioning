@@ -1,5 +1,6 @@
 import os
 from colorama import init, Fore
+
 # 初始化 colorama
 init(autoreset=True)
 
@@ -12,10 +13,10 @@ class PathChecker:
         self.current_directory = current_directory or os.getcwd()
 
     def check_path_exists(self, path, create_if_not_exist=False):
-        full_path = os.path.join(self.current_directory, path)
-
+        full_path = self.process_path(path)
         # 检查目录是否存在
         if os.path.exists(full_path):
+            print(Fore.BLUE + f"The directory or file '{full_path}' exists.")
             return True
         else:
             print(Fore.RED + f"The directory or file '{full_path}' does not exist.")
@@ -29,7 +30,7 @@ class PathChecker:
                 return False  # 返回False表示目录不存在
 
     def check_and_create_file(self, file_path, file_format='txt'):
-        full_path = os.path.join(self.current_directory, file_path).replace("\\", "/")
+        full_path = self.process_path(file_path)
         parent_path = os.path.dirname(full_path)
         temp_path = full_path
         extension = f'.{file_format.lower()}'
@@ -46,8 +47,23 @@ class PathChecker:
             try:
                 with open(full_path, 'w'):
                     # Create the file
-                    return full_path
+                    return os.path.normpath(full_path)
             except Exception as e:
                 print(Fore.RED + f"Error while creating JSON file: {e}")
         else:
             return None
+
+    def process_path(self, path):
+        processed_path = path
+        # 如果路径以 ".." 开头，则选择上一级目录
+        if path.startswith('..'):
+            if path.startswith('..'):
+                parent_directory = os.path.dirname(self.current_directory)
+                processed_path = os.path.join(parent_directory, path.lstrip('..\\'))
+        # 如果路径以 "." 开头，则去除路径开头的点再拼接
+        elif path.startswith('.'):
+            processed_path = os.path.join(self.current_directory, path.lstrip('.\\'))
+        else:
+            processed_path = os.path.join(self.current_directory, path)
+
+        return os.path.normpath(processed_path)
