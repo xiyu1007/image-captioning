@@ -2,6 +2,11 @@ import json
 import pandas as pd
 import os
 import random
+from utils.pathchecker import PathChecker
+from colorama import init, Fore
+# 初始化 colorama
+init(autoreset=True)
+
 
 
 class DatasetConverter:
@@ -11,14 +16,15 @@ class DatasetConverter:
         将数据集转化为json文件，数据集格式参照Readme $data。
         :param csv_path: CSV文件路径
         :param image_folder: 图像文件夹路径
-        :param output_json_path: 输出JSON文件路径
+        :param output_json_path: 输出JSON文件路径(保存目录)
         :param train_ratio: 训练集比例，默认为0.7
         :param val_ratio: 验证集比例，默认为0.15
         :param test_ratio: 测试集比例，默认为0.15
         """
         self.csv_path = csv_path
         self.image_folder = image_folder
-        self.output_json_path = output_json_path
+        self.json_name = os.path.basename(image_folder)
+        self.output_json_path = os.path.join(output_json_path, self.json_name)
         self.train_ratio = train_ratio
         self.val_ratio = val_ratio
         self.test_ratio = test_ratio
@@ -51,16 +57,18 @@ class DatasetConverter:
 
             image_info = {
                 'split': split_type,
-                'filepath': os.path.join(self.image_folder, image_name),
+                'filepath': os.path.join(self.image_folder, str(image_name)),
                 'filename': image_name,
                 'sentences': []
             }
 
             # 添加每个评论的信息
             for _, row in group.iterrows():
+                # 去除评论末尾的 '.'
+                comment_text = row['comment'].rstrip('.')
                 sentence = {
-                    'tokens': row['comment'].split(),  # 将评论文本分割为单词列表
-                    'raw': row['comment']
+                    'tokens': comment_text.split(),  # 将评论文本分割为单词列表
+                    'raw': comment_text
                 }
                 image_info['sentences'].append(sentence)
 
@@ -70,12 +78,19 @@ class DatasetConverter:
             if train_count >= len(df) * self.train_ratio and val_count >= len(
                     df) * self.val_ratio and test_count >= len(df) * self.test_ratio:
                 break
-
+        # 示例用法
+        # 创建 PathChecker 实例
+        path_checker = PathChecker()
+        self.output_json_path = path_checker.check_and_create_file(self.output_json_path,'json')
         # 将数据写入JSON文件
-        with open(self.output_json_path, 'w') as json_file:
-            json.dump(data, json_file, indent=2)
-
-        print(f"JSON文件已创建：{self.output_json_path}")
+        if self.output_json_path:
+            # 将数据写入JSON文件
+            try:
+                with open(self.output_json_path, 'w') as json_file:
+                    json.dump(data, json_file, indent=2)
+                print(Fore.BLUE + f"Success: JSON file created ==> {self.output_json_path}")
+            except Exception as e:
+                print(Fore.RED + f"Error while creating JSON file: {e}")
 
         """
         output_json 格式参照Readme $json
@@ -85,7 +100,7 @@ class DatasetConverter:
 # 使用示例
 csv_path = 'dataset/short_flickr30k_images_datasets/short_results.csv'
 image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-output_json_path = 'D:\\_01_python\\Image-Captioning\\data'
+output_json_path = 'dataset/data_to_json'
 
 converter = DatasetConverter(csv_path, image_folder, output_json_path)
 converter.convert_to_json()
