@@ -88,7 +88,7 @@ class DatasetConverter:
         # 示例用法
         # 创建 PathChecker 实例
         self.output_json_path = \
-            self.path_checker.check_and_create_file(self.output_json_path, 'json')
+            self.path_checker.check_and_create_filename(self.output_json_path, 'json')
 
         # 将数据写入JSON文件
         if self.output_json_path:

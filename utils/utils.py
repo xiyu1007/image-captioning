@@ -8,6 +8,8 @@ import pathchecker
 from tqdm import tqdm
 from collections import Counter
 from random import seed, choice, sample
+from colorama import init, Fore
+
 
 
 def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_image, min_word_freq, output_folder,
@@ -76,32 +78,33 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     word_map['<end>'] = len(word_map) + 1
     word_map['<pad>'] = 0
 
-    print(word_map)
+    # Create a base/root name for all output files
+    base_filename = dataset + '_' + str(captions_per_image) + '_cap_per_img_' + str(min_word_freq) + '_min_word_freq'
+    output_json_path = \
+        pathchecker.check_and_create_filename(os.path.join(output_folder, 'WORDMAP_' + base_filename), 'json')
 
-    # # Create a base/root name for all output files
-    # base_filename = dataset + '_' + str(captions_per_image) + '_cap_per_img_' + str(min_word_freq) + '_min_word_freq'
-    #
-    # # Save word map to a JSON
-    # with open(os.path.join(output_folder, 'WORDMAP_' + base_filename + '.json'), 'w') as j:
-    #     json.dump(word_map, j)
-    #
-    # # Sample captions for each image, save images to HDF5 file, and captions and their lengths to JSON files
-    # seed(123)
-    # for impaths, imcaps, split in [(train_image_paths, train_image_captions, 'TRAIN'),
-    #                                (val_image_paths, val_image_captions, 'VAL'),
-    #                                (test_image_paths, test_image_captions, 'TEST')]:
-    #
-    #     with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'a') as h:
-    #         # Make a note of the number of captions we are sampling per image
-    #         h.attrs['captions_per_image'] = captions_per_image
-    #
-    #         # Create dataset inside HDF5 file to store images
-    #         images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
-    #
-    #         print("\nReading %s images and captions, storing to file...\n" % split)
-    #
-    #         enc_captions = []
-    #         caplens = []
+    # Save word map to a JSON
+    with open(output_json_path, 'w') as j:
+        json.dump(word_map, j)
+        print(Fore.BLUE + f"Success: JSON file created ==> {output_json_path}")
+
+    # Sample captions for each image, save images to HDF5 file, and captions and their lengths to JSON files
+    seed(123)
+    for impaths, imcaps, split in [(train_image_paths, train_image_captions, 'TRAIN'),
+                                   (val_image_paths, val_image_captions, 'VAL'),
+                                   (test_image_paths, test_image_captions, 'TEST')]:
+
+        with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'a') as h:
+            # Make a note of the number of captions we are sampling per image
+            h.attrs['captions_per_image'] = captions_per_image
+
+            # Create dataset inside HDF5 file to store images
+            images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
+
+            print("\nReading %s images and captions, storing to file...\n" % split)
+
+            enc_captions = []
+            caplens = []
     #
     #         for i, path in enumerate(tqdm(impaths)):
     #
@@ -154,11 +157,14 @@ pathchecker = pathchecker.PathChecker()
 # 使用示例
 json_path = f'..out_data\\data_to_json\\short_flickr30k_images_datasets.json'
 image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-output_path = 'out_data/data_to_json'
+output_path = '..out_data/data_to_json'
+
 if pathchecker.check_path_exists(json_path):
     json_path = pathchecker.process_path(json_path)
-
-create_input_files('flickr30k', json_path, image_folder, 2, 3, output_path)
+else:
+    print("json not exists")
+output_path = pathchecker.check_path_exists(output_path, True)
+create_input_files('flickr30k', json_path, image_folder, 5, 5, output_path)
 
 
 def init_embedding(embeddings):

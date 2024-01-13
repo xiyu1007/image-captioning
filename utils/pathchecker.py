@@ -16,20 +16,19 @@ class PathChecker:
         full_path = self.process_path(path)
         # 检查目录是否存在
         if os.path.exists(full_path):
-            print(Fore.BLUE + f"The directory or file '{full_path}' exists.")
-            return True
+            # print(Fore.BLUE + f"The directory or file '{full_path}' exists.")
+            return full_path
         else:
             print(Fore.RED + f"The directory or file '{full_path}' does not exist.")
-
             # 如果设置了create_if_not_exist为True，自动创建目录
             if create_if_not_exist:
                 os.makedirs(full_path)
                 print(Fore.BLUE + f"Directory '{full_path}' created.")
-                return True  # 返回True表示目录被创建
+                return full_path  # 返回True表示目录被创建
             else:
-                return False  # 返回False表示目录不存在
+                return None  # 返回False表示目录不存在
 
-    def check_and_create_file(self, file_path, file_format='txt'):
+    def check_and_create_filename(self, file_path, file_format='txt'):
         full_path = self.process_path(file_path)
         parent_path = os.path.dirname(full_path)
         temp_path = full_path
@@ -49,7 +48,7 @@ class PathChecker:
                     # Create the file
                     return os.path.normpath(full_path)
             except Exception as e:
-                print(Fore.RED + f"Error while creating JSON file: {e}")
+                print(Fore.RED + f"Error while creating {file_format} file: {e}")
         else:
             return None
 
