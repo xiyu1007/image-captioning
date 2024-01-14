@@ -3,7 +3,7 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 from torch import nn
-from torch.nn.utils.rnn import pack_padded_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pack_sequence
 from models import Encoder, DecoderWithAttention
 from datasets import *
 from utils import *
@@ -31,7 +31,9 @@ start_epoch = 0  # 开始的训练轮次
 epochs = 20  # 训练的总轮次
 epochs_since_improvement = 0  # 自上次在验证集上取得改进以来的轮次数，用于提前停止
 batch_size = 32  # 每个训练批次中的样本数
-workers = 1  # 数据加载的工作进程数
+workers = 0  # 数据加载的工作进程数 num_workers参数设置为0，这将使得数据加载在主进程中进行，而不使用多进程。
+# 这个错误是由于h5py对象无法被序列化（pickled）引起的。
+# 在使用多进程（multiprocessing）加载数据时，数据加载器（DataLoader）会尝试对每个批次的数据进行序列化，以便在不同的进程中传递。
 encoder_lr = 1e-4  # 编码器的学习率（如果进行微调）
 decoder_lr = 4e-4  # 解码器的学习率
 grad_clip = 5.  # 梯度裁剪的阈值，用于防止梯度爆炸
@@ -92,6 +94,8 @@ def main():
     # Custom dataloaders
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
+
+    # TODO num_workers = 0
     train_loader = torch.utils.data.DataLoader(
         CaptionDataset(data_folder, data_name, 'TRAIN', transform=transforms.Compose([normalize])),
         batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
@@ -178,6 +182,7 @@ def train(train_loader, encoder, decoder, criterion, encoder_optimizer, decoder_
         # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
         targets = caps_sorted[:, 1:]
 
+        # TODO
         # Remove timesteps that we didn't decode at, or are pads
         # pack_padded_sequence is an easy trick to do this
         scores, _ = pack_padded_sequence(scores, decode_lengths, batch_first=True)

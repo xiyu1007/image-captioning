@@ -1,9 +1,16 @@
 import torch
 from torch import nn
 import torchvision
+from utils import PathChecker
+
+pathchecker = PathChecker()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# 设置下载路径
+models_download_path = 'Models/ResNet'
+models_download_path = pathchecker.check_path_exists(models_download_path,True)
+torch.hub.set_dir(models_download_path)
 
 class Encoder(nn.Module):
     """
@@ -16,8 +23,17 @@ class Encoder(nn.Module):
         # 设置编码后的图像大小
         self.enc_image_size = encoded_image_size
 
+        # # 使用预训练的 ImageNet ResNet-50 模型
+        # resnet = torchvision.models.resnet50(pretrained=True)
         # 使用预训练的 ImageNet ResNet-101 模型
-        resnet = torchvision.models.resnet101(pretrained=True)
+        # resnet = torchvision.models.resnet101(pretrained=True)
+        resnet = torchvision.models.resnet101(weights=torchvision.models.resnet.ResNet101_Weights.IMAGENET1K_V1)
+        """
+        IMAGENET1K_V1：ResNet-101在ImageNet上的第一个版本的预训练权重。
+        IMAGENET1K_V1_1：ResNet-101在ImageNet上的第一个版本的预训练权重，可能是更新或修正版本。
+        IMAGENET21K：ResNet-101在更大的ImageNet-21K数据集上进行的预训练。
+        DEFAULT：获取最新的预训练权重。
+        """
 
         # 移除线性层和池化层（因为我们不进行分类任务）
         modules = list(resnet.children())[:-2]
@@ -61,6 +77,8 @@ class Encoder(nn.Module):
 
         # 如果允许微调，仅允许微调卷积块2到4
         if fine_tune:
+            # ResNet-50
+            # for c in list(self.resnet.children())[4:]:
             for c in list(self.resnet.children())[5:]:
                 for p in c.parameters():
                     p.requires_grad = fine_tune
