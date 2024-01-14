@@ -43,6 +43,7 @@ class CaptionDataset(Dataset):
 
     def __getitem__(self, i):
         # Remember, the Nth caption corresponds to the (N // captions_per_image)th image
+        # 记住，第 N 个标题对应于第 (N // captions_per_image) 个图像
         img = torch.FloatTensor(self.imgs[i // self.cpi] / 255.)
         if self.transform is not None:
             img = self.transform(img)
