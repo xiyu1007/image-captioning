@@ -8,9 +8,21 @@ from tqdm import tqdm
 from utils import PathChecker
 from utils import create_input_files
 
+# 使用示例
+# csv data to json
+# csv among heads no space <==> image_name|comment_number|comment
+csv_path = 'dataset/short_flickr30k_images_datasets/short_results.csv'
+image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
+output_path_csv = 'out_data/datasets_to_json'
+
+# 使用示例
+# josn to hdf5 and json
+json_path = f'out_data/datasets_to_json/short_flickr30k_images_datasets.json'
+# image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
+output_path_json_hdf5 = 'out_data/img_json_hdf5'
+
 # 初始化 colorama
 init(autoreset=True)
-
 
 class DatasetConverter:
     def __init__(self, csv_path, image_folder, output_path,
@@ -156,20 +168,8 @@ def check_io_file(json_path, image_folder, output_path_json_hdf5):
 
 
 if __name__ == '__main__':
-    # 使用示例
-    # csv data to json
-    # csv among heads no space <==> image_name|comment_number|comment
-    csv_path = 'dataset/short_flickr30k_images_datasets/short_results.csv'
-    image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-    output_path_csv = 'out_data/datasets_to_json'
 
     create_csv_to_json(csv_path, image_folder, output_path_csv)
-
-    # 使用示例
-    # josn to hdf5 and json
-    json_path = f'out_data/datasets_to_json/short_flickr30k_images_datasets.json'
-    image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-    output_path_json_hdf5 = 'out_data/img_json_hdf5'
 
     json_path, image_folder, output_path_json_hdf5 = \
         check_io_file(json_path, image_folder, output_path_json_hdf5)

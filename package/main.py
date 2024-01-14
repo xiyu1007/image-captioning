@@ -52,7 +52,7 @@ class DecoderRNN(nn.Module):
 
 
 # 加载图像和处理
-image_path = './dataset/img/img.png'
+image_path = '../dataset/img/img.png'
 image = Image.open(image_path).convert('RGB')
 image = transform(image).unsqueeze(0)
 

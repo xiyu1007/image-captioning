@@ -25,7 +25,15 @@ class Encoder(nn.Module):
 
         # 调整图像大小以允许输入大小可变的图像
         self.adaptive_pool = nn.AdaptiveAvgPool2d((encoded_image_size, encoded_image_size))
-
+        """
+        nn.AdaptiveAvgPool2d: 这是 PyTorch 中的自适应平均池化层，它可以将输入的任意大小的二维数据进行自适应平均池化。
+        它的输出大小是固定的，由参数指定。
+        (encoded_image_size, encoded_image_size): 
+        这是 nn.AdaptiveAvgPool2d 层的参数，表示输出的大小。表示最终编码后的图像的大小。
+        这一行代码的作用是对输入的特征图进行自适应平均池化，将其调整为指定的输出大小 (encoded_image_size, encoded_image_size)。
+        这通常用于确保模型的输出是固定大小的，不受输入图像大小的影响。
+        在图像编码任务中，这有助于将不同尺寸的输入图像映射到相同大小的特征图，以便后续的处理。
+        """
         # 执行微调
         self.fine_tune()
 
@@ -36,23 +44,26 @@ class Encoder(nn.Module):
         :param images: images, a tensor of dimensions (batch_size, 3, image_size, image_size)
         :return: encoded images
         """
-        out = self.resnet(images)  # (batch_size, 2048, image_size/32, image_size/32)
-        out = self.adaptive_pool(out)  # (batch_size, 2048, encoded_image_size, encoded_image_size)
-        out = out.permute(0, 2, 3, 1)  # (batch_size, encoded_image_size, encoded_image_size, 2048)
+        out = self.resnet(images)  # 使用ResNet进行特征提取，输出大小为 (batch_size, 2048, image_size/32, image_size/32)
+        out = self.adaptive_pool(out)  # 使用自适应平均池化，将特征图调整为 (batch_size, 2048, encoded_image_size, encoded_image_size)
+        out = out.permute(0, 2, 3, 1)  # 调整维度顺序，将通道维度移到最后，输出为 (batch_size, encoded_image_size, encoded_image_size, 2048)
         return out
 
     def fine_tune(self, fine_tune=True):
         """
-        Allow or prevent the computation of gradients for convolutional blocks 2 through 4 of the encoder.
+        允许或禁止对编码器的卷积块2到4进行梯度计算。
 
-        :param fine_tune: Allow?
+        :param fine_tune: 是否允许微调?
         """
+        # 禁止对整个 ResNet 的梯度计算
         for p in self.resnet.parameters():
             p.requires_grad = False
-        # If fine-tuning, only fine-tune convolutional blocks 2 through 4
-        for c in list(self.resnet.children())[5:]:
-            for p in c.parameters():
-                p.requires_grad = fine_tune
+
+        # 如果允许微调，仅允许微调卷积块2到4
+        if fine_tune:
+            for c in list(self.resnet.children())[5:]:
+                for p in c.parameters():
+                    p.requires_grad = fine_tune
 
 
 class Attention(nn.Module):
@@ -67,11 +78,16 @@ class Attention(nn.Module):
         :param attention_dim: size of the attention network
         """
         super(Attention, self).__init__()
-        self.encoder_att = nn.Linear(encoder_dim, attention_dim)  # linear layer to transform encoded image
-        self.decoder_att = nn.Linear(decoder_dim, attention_dim)  # linear layer to transform decoder's output
-        self.full_att = nn.Linear(attention_dim, 1)  # linear layer to calculate values to be softmax-ed
+        # 通过线性层将编码后的图像特征映射到注意力网络的维度
+        self.encoder_att = nn.Linear(encoder_dim, attention_dim)
+        # 通过线性层将解码器的输出映射到注意力网络的维度
+        self.decoder_att = nn.Linear(decoder_dim, attention_dim)
+        # 通过线性层计算进行 softmax 的权重值
+        self.full_att = nn.Linear(attention_dim, 1)
+        # 激活函数 ReLU
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax(dim=1)  # softmax layer to calculate weights
+        # softmax 层，用于计算权重值
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, encoder_out, decoder_hidden):
         """

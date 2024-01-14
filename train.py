@@ -1,4 +1,3 @@
-import time
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
@@ -27,19 +26,20 @@ cudnn.benchmark = True  # set to true only if inputs to model are fixed size; ot
 
 
 # Training parameters
-start_epoch = 0
-epochs = 120  # number of epochs to train for (if early stopping is not triggered)
-epochs_since_improvement = 0  # keeps track of number of epochs since there's been an improvement in validation BLEU
-batch_size = 32
-workers = 1  # for data-loading; right now, only 1 works with h5py
-encoder_lr = 1e-4  # learning rate for encoder if fine-tuning
-decoder_lr = 4e-4  # learning rate for decoder
-grad_clip = 5.  # clip gradients at an absolute value of
-alpha_c = 1.  # regularization parameter for 'doubly stochastic attention', as in the paper
-best_bleu4 = 0.  # BLEU-4 score right now
-print_freq = 100  # print training/validation stats every __ batches
-fine_tune_encoder = False  # fine-tune encoder?
-checkpoint = None  # path to checkpoint, None if none
+# 训练参数
+start_epoch = 0  # 开始的训练轮次
+epochs = 20  # 训练的总轮次
+epochs_since_improvement = 0  # 自上次在验证集上取得改进以来的轮次数，用于提前停止
+batch_size = 32  # 每个训练批次中的样本数
+workers = 1  # 数据加载的工作进程数
+encoder_lr = 1e-4  # 编码器的学习率（如果进行微调）
+decoder_lr = 4e-4  # 解码器的学习率
+grad_clip = 5.  # 梯度裁剪的阈值，用于防止梯度爆炸
+alpha_c = 1.  # '双重随机注意力'的正则化参数
+best_bleu4 = 0.  # 当前的最佳 BLEU-4 分数
+print_freq = 100  # 每训练多少个批次打印一次训练/验证统计信息
+fine_tune_encoder = False  # 是否对编码器进行微调
+checkpoint = None  # 检查点的路径，如果为 None，则没有检查点
 
 
 def main():
@@ -292,7 +292,8 @@ def validate(val_loader, encoder, decoder, criterion):
                 print('Validation: [{0}/{1}]\t'
                       'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Top-5 Accuracy {top5.val:.3f} ({top5.avg:.3f})\t'.format(i, len(val_loader), batch_time=batch_time,
+                      'Top-5 Accuracy {top5.val:.3f} ({top5.avg:.3f})\t'.format(i, len(val_loader),
+                                                                                batch_time=batch_time,
                                                                                 loss=losses, top5=top5accs))
 
             # Store references (true captions), and hypothesis (prediction) for each image
