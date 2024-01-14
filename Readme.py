@@ -59,6 +59,18 @@ Counter({'a': 112, 'in': 52, 'A': 42, 'on': 36, 'the': 28, 'of': 27})
 """
 # $HDF5
 """
+images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
+impaths:[
+'D:\\_01_python\\Image-Captioning\\dataset\\
+short_flickr30k_images_datasets\\short_flickr30k_images_datasets\\1000092795.jpg', 
+'D:\\_01_python\\Image-Captioning\\dataset\\
+short_flickr30k_images_datasets\\short_flickr30k_images_datasets\\10002456.jpg']
+imcaps:[
+[['Two', 'young', 'guys', 'with', 'shaggy', 'hair', 'look', 'at', 'their', 'hands', 'while', 'hanging', 'out', 'in', 'the', 'yard'], 
+['Two', 'young', ',', 'White', 'males', 'are', 'outside', 'near', 'many', 'bushes'], 
+['Two', 'men', 'in', 'green', 'shirts', 'are', 'standing', 'in', 'a', 'yard'], 
+['A', 'man', 'in', 'a', 'blue', 'shirt', 'standing', 'in', 'a', 'garden'],
+['Two', 'friends', 'enjoy', 'time', 'spent', 'together']]]
 这行代码使用了HDF5（H5py库）创建了一个名为 'images' 的数据集。让我为你解释一下参数：
 h：这是 HDF5 文件的对象，表示你正在向其添加数据集。
 'images'：这是数据集的名称，将在 HDF5 文件中标识这个数据集。

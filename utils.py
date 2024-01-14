@@ -1,6 +1,5 @@
 import os
 import time
-
 import numpy as np
 import h5py
 import json
@@ -10,11 +9,6 @@ from tqdm import tqdm
 from collections import Counter
 from random import seed, choice, sample
 from colorama import init, Fore
-
-# utils
-import pathchecker
-
-pathchecker = pathchecker.PathChecker()
 
 # 初始化 colorama
 init(autoreset=True)
@@ -34,6 +28,7 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     :param max_len: don't sample captions longer than this length
     """
 
+    pathchecker = PathChecker()
     assert dataset in {'coco', 'flickr8k', 'flickr30k'}
 
     # Read Karpathy JSON
@@ -78,8 +73,8 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     assert len(train_image_paths) == len(train_image_captions)
     assert len(val_image_paths) == len(val_image_captions)
     assert len(test_image_paths) == len(test_image_captions)
-
     # Create word map # $ 词映射
+
     # 创建一个单词列表，其中包含词频大于 min_word_freq 的单词
     words = [w for w in word_freq.keys() if word_freq[w] > min_word_freq]
     # 创建一个字典，将单词映射到它们的索引（索引从1开始）
@@ -104,6 +99,19 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     for impaths, imcaps, split in [(train_image_paths, train_image_captions, 'TRAIN'),
                                    (val_image_paths, val_image_captions, 'VAL'),
                                    (test_image_paths, test_image_captions, 'TEST')]:
+        """
+        impaths:[
+        'D:\\_01_python\\Image-Captioning\\dataset\\
+        short_flickr30k_images_datasets\\short_flickr30k_images_datasets\\1000092795.jpg', 
+        'D:\\_01_python\\Image-Captioning\\dataset\\
+        short_flickr30k_images_datasets\\short_flickr30k_images_datasets\\10002456.jpg']
+        imcaps:[
+        [['Two', 'young', 'guys', 'with', 'shaggy', 'hair', 'look', 'at', 'their', 'hands', 'while', 'hanging', 'out', 'in', 'the', 'yard'], 
+        ['Two', 'young', ',', 'White', 'males', 'are', 'outside', 'near', 'many', 'bushes'], 
+        ['Two', 'men', 'in', 'green', 'shirts', 'are', 'standing', 'in', 'a', 'yard'], 
+        ['A', 'man', 'in', 'a', 'blue', 'shirt', 'standing', 'in', 'a', 'garden'],
+        ['Two', 'friends', 'enjoy', 'time', 'spent', 'together']]]
+        """
 
         with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'w') as h:
             # Make a note of the number of captions we are sampling per image
@@ -181,8 +189,6 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
                                                       'json')
             with open(output_json_path, 'w') as j:
                 json.dump(caplens, j)
-
-
 # $
 def init_embedding(embeddings):
     """
@@ -322,3 +328,68 @@ def accuracy(scores, targets, k):
     correct = ind.eq(targets.view(-1, 1).expand_as(ind))
     correct_total = correct.view(-1).float().sum()  # 0D tensor
     return correct_total.item() * (100.0 / batch_size)
+
+class PathChecker:
+    def __init__(self, current_directory=None):
+        """
+        param current_directory: 以Image-Captioning为根目录
+        """
+        self.current_directory = current_directory or os.getcwd()
+
+    def check_path_exists(self, path, create_if_not_exist=False):
+        full_path = self.process_path(path)
+        # 检查目录是否存在
+        if os.path.exists(full_path):
+            # print(Fore.BLUE + f"The directory or file '{full_path}' exists.")
+            return full_path
+        else:
+            print(Fore.YELLOW + f"The directory or file '{full_path}' does not exist.")
+            # 如果设置了create_if_not_exist为True，自动创建目录
+            if create_if_not_exist:
+                os.makedirs(full_path)
+                print(Fore.BLUE + f"Success: Directory '{full_path}' created.")
+                return full_path  # 返回True表示目录被创建
+            else:
+                return None  # 返回False表示目录不存在
+
+    def check_and_create_filename(self, file_path, file_format='txt',create_new_if_exist=False):
+        full_path = self.process_path(file_path)
+
+        parent_path = os.path.dirname(full_path)
+        temp_path = full_path
+        extension = f'.{file_format.lower()}'
+
+        count = 1
+        if self.check_path_exists(parent_path, True):
+            if not os.path.exists(f"{full_path}{extension}") or not create_new_if_exist:
+                full_path = full_path + extension
+            else:
+                while os.path.exists(temp_path + "_" + str(count) + extension):
+                    count += 1
+                full_path = temp_path + "_" + str(count) + extension
+            try:
+                with open(full_path, 'w'):
+                    # Create the file
+                    return os.path.normpath(full_path)
+            except Exception as e:
+                print(Fore.RED + f"Error while creating {file_format} file: {e}")
+        else:
+            return None
+
+    def process_path(self, path):
+        # 如果路径为绝对路径，则直接返回
+        if os.path.isabs(path):
+            return os.path.normpath(path)
+        processed_path = path
+        # 如果路径以 ".." 开头，则选择上一级目录
+        if path.startswith('..'):
+            if path.startswith('..'):
+                parent_directory = os.path.dirname(self.current_directory)
+                processed_path = os.path.join(parent_directory, path.lstrip('..\\'))
+        # 如果路径以 "." 开头，则去除路径开头的点再拼接
+        elif path.startswith('.'):
+            processed_path = os.path.join(self.current_directory, path.lstrip('.\\'))
+        else:
+            processed_path = os.path.join(self.current_directory, path)
+
+        return os.path.normpath(processed_path)

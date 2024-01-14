@@ -1,11 +1,12 @@
 import json
 import os
 import random
-import time
-
 from colorama import init, Fore
 import pandas as pd
-from utils.pathchecker import PathChecker
+from tqdm import tqdm
+
+from utils import PathChecker
+from utils import create_input_files
 
 # 初始化 colorama
 init(autoreset=True)
@@ -40,17 +41,18 @@ class DatasetConverter:
         self.test_count = 0
         self.total_count = 0
 
-    def convert_to_json(self,batch=0,record_parameters=True):
+    def convert_to_json(self, batch=0, record_parameters=True):
         # 读取CSV文件
         if batch:
-            df = pd.read_csv(self.csv_path, delimiter='|', nrows=batch+1)
+            df = pd.read_csv(self.csv_path, delimiter='|', nrows=batch + 1)
         else:
             df = pd.read_csv(self.csv_path, delimiter='|')
         # 初始化数据结构
         data = {'images': []}
 
         # 根据图片名称组织数据
-        for image_name, group in df.groupby('image_name'):
+        for image_name, group in tqdm(df.groupby('image_name'), desc="CSV-Processing"):
+            # 在这里执行你的操作
             # 随机确定当前图像的拆分类型
             rand_num = random.uniform(0, 1)
             if rand_num < self.train_ratio:
@@ -108,7 +110,7 @@ class DatasetConverter:
         """
 
     def write_parameters_to_json(self, json_path='parameters_jsonfile'):
-        json_path = os.path.join(self.output_path,json_path)
+        json_path = os.path.join(self.output_path, json_path)
         """
         将参数写入JSON文件
         :param json_path: 输出JSON文件路径
@@ -125,7 +127,7 @@ class DatasetConverter:
             'val_count': self.val_count,
             'test_count': self.test_count,
         }
-        json_path = self.path_checker.check_and_create_filename(json_path,'json')
+        json_path = self.path_checker.check_and_create_filename(json_path, 'json')
         try:
             with open(json_path, 'w') as json_file:
                 json.dump(parameters, json_file, indent=2)
@@ -134,11 +136,42 @@ class DatasetConverter:
             print(Fore.RED + f"Error while writing parameters to JSON file: {e}")
 
 
-# 使用示例
-# csv among heads no space <==> image_name|comment_number|comment
-csv_path = 'dataset/short_flickr30k_images_datasets/short_results.csv'
-image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-output_path = 'out_data/datasets_to_json'
+def create_csv_to_json(csv_path, image_folder, output_path_csv):
+    # csv data to json
+    converter = DatasetConverter(csv_path, image_folder, output_path_csv)
+    converter.convert_to_json(5000)
 
-converter = DatasetConverter(csv_path, image_folder, output_path)
-converter.convert_to_json(5000)
+
+def check_io_file(json_path, image_folder, output_path_json_hdf5):
+    # josn to hdf5 and json
+    pathchecker = PathChecker()
+    if pathchecker.check_path_exists(json_path):
+        json_path = pathchecker.process_path(json_path)
+    else:
+        print(Fore.RED + f"Error: json file '{json_path}' not exists")
+        return
+    image_folder = pathchecker.check_path_exists(image_folder)
+    output_path_json_hdf5 = pathchecker.check_path_exists(output_path_json_hdf5, True)
+    return json_path, image_folder, output_path_json_hdf5
+
+
+if __name__ == '__main__':
+    # 使用示例
+    # csv data to json
+    # csv among heads no space <==> image_name|comment_number|comment
+    csv_path = 'dataset/short_flickr30k_images_datasets/short_results.csv'
+    image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
+    output_path_csv = 'out_data/datasets_to_json'
+
+    create_csv_to_json(csv_path, image_folder, output_path_csv)
+
+    # 使用示例
+    # josn to hdf5 and json
+    json_path = f'out_data/datasets_to_json/short_flickr30k_images_datasets.json'
+    image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
+    output_path_json_hdf5 = 'out_data/img_json_hdf5'
+
+    json_path, image_folder, output_path_json_hdf5 = \
+        check_io_file(json_path, image_folder, output_path_json_hdf5)
+    # captions_per_image:5  min_word_freq: 5
+    create_input_files('flickr30k', json_path, image_folder, 5, 5, output_path_json_hdf5, max_len=50)
