@@ -1,15 +1,23 @@
 import os
+import time
+
 import numpy as np
 import h5py
 import json
 import torch
-# from scipy.misc import imread, imresize
-import pathchecker
+import cv2
 from tqdm import tqdm
 from collections import Counter
 from random import seed, choice, sample
 from colorama import init, Fore
 
+# utils
+import pathchecker
+
+pathchecker = pathchecker.PathChecker()
+
+# 初始化 colorama
+init(autoreset=True)
 
 
 def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_image, min_word_freq, output_folder,
@@ -52,8 +60,9 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
         if len(captions) == 0:
             continue
 
-        path = os.path.join(image_folder, img['filepath'], img['filename']) if dataset == 'coco' else os.path.join(
-            image_folder, img['filename'])
+        path = os.path.join(image_folder, img['filepath'], img['filename']) \
+            if dataset == 'coco' else os.path.join(image_folder, img['filename'])
+        path = os.path.normpath(path)
 
         if img['split'] in {'train', 'restval'}:
             train_image_paths.append(path)
@@ -71,7 +80,9 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     assert len(test_image_paths) == len(test_image_captions)
 
     # Create word map # $ 词映射
+    # 创建一个单词列表，其中包含词频大于 min_word_freq 的单词
     words = [w for w in word_freq.keys() if word_freq[w] > min_word_freq]
+    # 创建一个字典，将单词映射到它们的索引（索引从1开始）
     word_map = {k: v + 1 for v, k in enumerate(words)}
     word_map['<unk>'] = len(word_map) + 1
     word_map['<start>'] = len(word_map) + 1
@@ -94,83 +105,89 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
                                    (val_image_paths, val_image_captions, 'VAL'),
                                    (test_image_paths, test_image_captions, 'TEST')]:
 
-        with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'a') as h:
+        with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'w') as h:
             # Make a note of the number of captions we are sampling per image
             h.attrs['captions_per_image'] = captions_per_image
 
             # Create dataset inside HDF5 file to store images
+            # $
             images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
 
             print("\nReading %s images and captions, storing to file...\n" % split)
-
+            time.sleep(0.01)
             enc_captions = []
             caplens = []
-    #
-    #         for i, path in enumerate(tqdm(impaths)):
-    #
-    #             # Sample captions
-    #             if len(imcaps[i]) < captions_per_image:
-    #                 captions = imcaps[i] + [choice(imcaps[i]) for _ in range(captions_per_image - len(imcaps[i]))]
-    #             else:
-    #                 captions = sample(imcaps[i], k=captions_per_image)
-    #
-    #             # Sanity check
-    #             assert len(captions) == captions_per_image
-    #
-    #             # Read images
-    #             img = imread(impaths[i])
-    #             if len(img.shape) == 2:
-    #                 img = img[:, :, np.newaxis]
-    #                 img = np.concatenate([img, img, img], axis=2)
-    #             img = imresize(img, (256, 256))
-    #             img = img.transpose(2, 0, 1)
-    #             assert img.shape == (3, 256, 256)
-    #             assert np.max(img) <= 255
-    #
-    #             # Save image to HDF5 file
-    #             images[i] = img
-    #
-    #             for j, c in enumerate(captions):
-    #                 # Encode captions
-    #                 enc_c = [word_map['<start>']] + [word_map.get(word, word_map['<unk>']) for word in c] + [
-    #                     word_map['<end>']] + [word_map['<pad>']] * (max_len - len(c))
-    #
-    #                 # Find caption lengths
-    #                 c_len = len(c) + 2
-    #
-    #                 enc_captions.append(enc_c)
-    #                 caplens.append(c_len)
-    #
-    #         # Sanity check
-    #         assert images.shape[0] * captions_per_image == len(enc_captions) == len(caplens)
-    #
-    #         # Save encoded captions and their lengths to JSON files
-    #         with open(os.path.join(output_folder, split + '_CAPTIONS_' + base_filename + '.json'), 'w') as j:
-    #             json.dump(enc_captions, j)
-    #
-    #         with open(os.path.join(output_folder, split + '_CAPLENS_' + base_filename + '.json'), 'w') as j:
-    #             json.dump(caplens, j)
+
+            for i, path in enumerate(tqdm(impaths, desc="Image-Processing")):
+                # Sample captions
+                if len(imcaps[i]) < captions_per_image:
+                    # If the number of existing captions for this image is less than captions_per_image,
+                    # sample additional captions by randomly choosing from the existing captions.
+                    captions = imcaps[i] + [choice(imcaps[i]) for _ in range(captions_per_image - len(imcaps[i]))]
+                else:
+                    # If the number of existing captions for this image is equal to or greater than captions_per_image,
+                    # sample captions by randomly selecting captions from the existing list.
+                    captions = sample(imcaps[i], k=captions_per_image)
+
+                # Sanity check
+                assert len(captions) == captions_per_image
+
+                # Read images using cv2
+                img = cv2.imread(impaths[i])
+
+                # Convert BGR to RGB if needed
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+                # Check if the image is grayscale (2D), if yes, convert it to RGB (3D)
+                if len(img.shape) == 2:
+                    img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+
+                # Resize the image to (256, 256)
+                img = cv2.resize(img, (256, 256))
+
+                # Transpose the dimensions to have the channel dimension as the first dimension
+                #  (height, width, channels) ==> (channels, height, width)
+                img = np.transpose(img, (2, 0, 1))
+                assert img.shape == (3, 256, 256)
+                assert np.max(img) <= 255
+                # Save image to HDF5 file
+                images[i] = img
+
+                for j, c in enumerate(captions):
+                    # Encode captions
+                    # 编码标题
+                    # 对标题中的每个单词进行编码，如果单词在 word_map 中不存在，则使用 <unk> 的索引
+                    # 添加结束标记和填充 <pad>，确保总长度为 max_len
+                    enc_c = [word_map['<start>']] + [word_map.get(word, word_map['<unk>']) for word in c] + [
+                        word_map['<end>']] + [word_map['<pad>']] * (max_len - len(c))
+
+                    # Find caption lengths
+                    c_len = len(c) + 2
+
+                    enc_captions.append(enc_c)
+                    caplens.append(c_len)
+
+            # Sanity check
+            assert images.shape[0] * captions_per_image == len(enc_captions) == len(caplens)
+
+            output_json_path = \
+                pathchecker.check_and_create_filename(os.path.join(output_folder, split + '_CAPTIONS_' + base_filename),
+                                                      'json')
+            # Save encoded captions and their lengths to JSON files
+            with open(output_json_path, 'w') as j:
+                json.dump(enc_captions, j)
+            output_json_path = \
+                pathchecker.check_and_create_filename(os.path.join(output_folder, split + '_CAPLENS_' + base_filename),
+                                                      'json')
+            with open(output_json_path, 'w') as j:
+                json.dump(caplens, j)
 
 
-pathchecker = pathchecker.PathChecker()
-
-# 使用示例
-json_path = f'..out_data\\data_to_json\\short_flickr30k_images_datasets.json'
-image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-output_path = '..out_data/data_to_json'
-
-if pathchecker.check_path_exists(json_path):
-    json_path = pathchecker.process_path(json_path)
-else:
-    print("json not exists")
-output_path = pathchecker.check_path_exists(output_path, True)
-create_input_files('flickr30k', json_path, image_folder, 5, 5, output_path)
-
-
+# $
 def init_embedding(embeddings):
     """
     Fills embedding tensor with values from the uniform distribution.
-
+    该函数的目的是将嵌入张量（embedding tensor）用均匀分布的值填充。
     :param embeddings: embedding tensor
     """
     bias = np.sqrt(3.0 / embeddings.size(1))

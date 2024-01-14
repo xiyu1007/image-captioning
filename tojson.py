@@ -1,6 +1,8 @@
 import json
 import os
 import random
+import time
+
 from colorama import init, Fore
 import pandas as pd
 from utils.pathchecker import PathChecker
@@ -10,7 +12,7 @@ init(autoreset=True)
 
 
 class DatasetConverter:
-    def __init__(self, csv_path, image_folder, output_json_path,
+    def __init__(self, csv_path, image_folder, output_path,
                  train_ratio=0.7, val_ratio=0.15, test_ratio=0.15):
         """
         将数据集转化为json文件，数据集格式参照Readme $data。
@@ -24,21 +26,28 @@ class DatasetConverter:
         self.csv_path = csv_path
         self.image_folder = image_folder
         self.json_name = os.path.basename(image_folder)
-        self.output_json_path = os.path.join(output_json_path, self.json_name)
+        self.output_path = output_path
+        self.output_json_path = os.path.join(output_path, self.json_name)
         self.train_ratio = train_ratio
         self.val_ratio = val_ratio
         self.test_ratio = test_ratio
+        # 创建 PathChecker 实例
         self.path_checker = PathChecker()
 
-    def convert_to_json(self):
-        # 读取CSV文件
-        df = pd.read_csv(self.csv_path, delimiter='|')
+        # 用于跟踪当前拆分的计数
+        self.train_count = 0
+        self.val_count = 0
+        self.test_count = 0
+        self.total_count = 0
 
+    def convert_to_json(self,batch=0,record_parameters=True):
+        # 读取CSV文件
+        if batch:
+            df = pd.read_csv(self.csv_path, delimiter='|', nrows=batch+1)
+        else:
+            df = pd.read_csv(self.csv_path, delimiter='|')
         # 初始化数据结构
         data = {'images': []}
-
-        # 用于跟踪当前拆分的计数
-        train_count, val_count, test_count = 0, 0, 0
 
         # 根据图片名称组织数据
         for image_name, group in df.groupby('image_name'):
@@ -46,13 +55,13 @@ class DatasetConverter:
             rand_num = random.uniform(0, 1)
             if rand_num < self.train_ratio:
                 split_type = 'train'
-                train_count += 1
+                self.train_count += 1
             elif rand_num < self.train_ratio + self.val_ratio:
                 split_type = 'val'
-                val_count += 1
+                self.val_count += 1
             else:
                 split_type = 'test'
-                test_count += 1
+                self.test_count += 1
 
             image_info = {
                 'split': split_type,
@@ -69,24 +78,18 @@ class DatasetConverter:
 
             data['images'].append(image_info)
 
-            # 检查是否总长度达到 len(df)，如果达到了，停止循环
-            if train_count + val_count + test_count >= len(df):
-                break
-
             # # 检查是否达到了所需比例，如果达到了，停止循环
             # if train_count >= len(df) * self.train_ratio and val_count >= len(
             #         df) * self.val_ratio and test_count >= len(df) * self.test_ratio:
             #     break
 
+        self.total_count = self.train_count + self.val_count + self.test_count
         # 打印拆分数量
+        print(Fore.BLUE + f"Total count: {self.total_count}")
+        print(Fore.BLUE + f"Train count: {self.train_count}")
+        print(Fore.BLUE + f"Validation count: {self.val_count}")
+        print(Fore.BLUE + f"Test count: {self.test_count}")
 
-        print(Fore.BLUE + f"Total count: {train_count + val_count + test_count}")
-        print(Fore.BLUE + f"Train count: {train_count}")
-        print(Fore.BLUE + f"Validation count: {val_count}")
-        print(Fore.BLUE + f"Test count: {test_count}")
-
-        # 示例用法
-        # 创建 PathChecker 实例
         self.output_json_path = \
             self.path_checker.check_and_create_filename(self.output_json_path, 'json')
 
@@ -95,19 +98,47 @@ class DatasetConverter:
             try:
                 with open(self.output_json_path, 'w') as json_file:
                     json.dump(data, json_file, indent=2)
-                print(Fore.BLUE + f"Success: JSON file created ==> {self.output_json_path}")
+                print(Fore.BLUE + f"Success: Datasets json file created ==> {self.output_json_path}")
             except Exception as e:
                 print(Fore.RED + f"Error while creating JSON file: {e}")
 
+        self.write_parameters_to_json()
         """
-        output_json 格式参照Readme $json
+        output_jsonfile 格式参照Readme $json
         """
+
+    def write_parameters_to_json(self, json_path='parameters_jsonfile'):
+        json_path = os.path.join(self.output_path,json_path)
+        """
+        将参数写入JSON文件
+        :param json_path: 输出JSON文件路径
+        """
+        parameters = {
+            'csv_path': self.csv_path,
+            'image_folder': self.image_folder,
+            'output_json_path': self.output_json_path,
+            'total_count': self.total_count,
+            'train_ratio': self.train_ratio,
+            'val_ratio': self.val_ratio,
+            'test_ratio': self.test_ratio,
+            'train_count': self.train_count,
+            'val_count': self.val_count,
+            'test_count': self.test_count,
+        }
+        json_path = self.path_checker.check_and_create_filename(json_path,'json')
+        try:
+            with open(json_path, 'w') as json_file:
+                json.dump(parameters, json_file, indent=2)
+            print(Fore.BLUE + f"Success: Parameters written to JSON file ==> {json_path}")
+        except Exception as e:
+            print(Fore.RED + f"Error while writing parameters to JSON file: {e}")
 
 
 # 使用示例
+# csv among heads no space <==> image_name|comment_number|comment
 csv_path = 'dataset/short_flickr30k_images_datasets/short_results.csv'
 image_folder = 'dataset/short_flickr30k_images_datasets/short_flickr30k_images_datasets'
-output_json_path = 'out_data/data_to_json'
+output_path = 'out_data/datasets_to_json'
 
-converter = DatasetConverter(csv_path, image_folder, output_json_path)
-converter.convert_to_json()
+converter = DatasetConverter(csv_path, image_folder, output_path)
+converter.convert_to_json(5000)

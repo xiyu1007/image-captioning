@@ -19,30 +19,30 @@ class PathChecker:
             # print(Fore.BLUE + f"The directory or file '{full_path}' exists.")
             return full_path
         else:
-            print(Fore.RED + f"The directory or file '{full_path}' does not exist.")
+            print(Fore.YELLOW + f"The directory or file '{full_path}' does not exist.")
             # 如果设置了create_if_not_exist为True，自动创建目录
             if create_if_not_exist:
                 os.makedirs(full_path)
-                print(Fore.BLUE + f"Directory '{full_path}' created.")
+                print(Fore.BLUE + f"Success: Directory '{full_path}' created.")
                 return full_path  # 返回True表示目录被创建
             else:
                 return None  # 返回False表示目录不存在
 
-    def check_and_create_filename(self, file_path, file_format='txt'):
+    def check_and_create_filename(self, file_path, file_format='txt',create_new_if_exist=False):
         full_path = self.process_path(file_path)
+
         parent_path = os.path.dirname(full_path)
         temp_path = full_path
         extension = f'.{file_format.lower()}'
 
         count = 1
         if self.check_path_exists(parent_path, True):
-            if not os.path.exists(f"{full_path}{extension}"):
+            if not os.path.exists(f"{full_path}{extension}") or not create_new_if_exist:
                 full_path = full_path + extension
             else:
                 while os.path.exists(temp_path + "_" + str(count) + extension):
                     count += 1
                 full_path = temp_path + "_" + str(count) + extension
-
             try:
                 with open(full_path, 'w'):
                     # Create the file
@@ -53,6 +53,9 @@ class PathChecker:
             return None
 
     def process_path(self, path):
+        # 如果路径为绝对路径，则直接返回
+        if os.path.isabs(path):
+            return os.path.normpath(path)
         processed_path = path
         # 如果路径以 ".." 开头，则选择上一级目录
         if path.startswith('..'):
