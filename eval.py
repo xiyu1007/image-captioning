@@ -8,11 +8,18 @@ from nltk.translate.bleu_score import corpus_bleu
 import torch.nn.functional as F
 from tqdm import tqdm
 
+pathchecker = PathChecker()
+
 # Parameters
-data_folder = 'out_data/img_json_hdf5'  # folder with data files saved by create_input_files.py
+data_folder = './out_data/img_json_hdf5'  # folder with data files saved by create_input_files.py
 data_name = 'flickr30k_5_cap_per_img_5_min_word_freq'  # base name shared by data files
-checkpoint = '../BEST_checkpoint_coco_5_cap_per_img_5_min_word_freq.pth.tar'  # model checkpoint
-word_map_file = 'out_data/img_json_hdf5/WORDMAP_flickr30k_5_cap_per_img_5_min_word_freq.json'  # word map, ensure it's the same the data was encoded with and the model was trained with
+checkpoint = './out_data/save_model/BEST_checkpoint_flickr30k_5_cap_per_img_5_min_word_freq.pth.tar'  # model checkpoint
+word_map_file = './out_data/img_json_hdf5/WORDMAP_flickr30k_5_cap_per_img_5_min_word_freq.json'  # word map, ensure it's the same the data was encoded with and the model was trained with
+
+data_folder = pathchecker.check_path_exists(data_folder)
+checkpoint = pathchecker.check_path_exists(checkpoint)
+word_map_file = pathchecker.check_path_exists(word_map_file)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # sets device for model and PyTorch tensors
 cudnn.benchmark = True  # set to true only if inputs to model are fixed size; otherwise lots of computational overhead
 
@@ -46,7 +53,7 @@ def evaluate(beam_size):
     # DataLoader
     loader = torch.utils.data.DataLoader(
         CaptionDataset(data_folder, data_name, 'TEST', transform=transforms.Compose([normalize])),
-        batch_size=1, shuffle=True, num_workers=1, pin_memory=True)
+        batch_size=1, shuffle=True, num_workers=0, pin_memory=True)
 
     # TODO: Batched Beam Search
     # Therefore, do not use a batch_size greater than 1 - IMPORTANT!
@@ -68,6 +75,7 @@ def evaluate(beam_size):
 
         # Encode
         encoder_out = encoder(image)  # (1, enc_image_size, enc_image_size, encoder_dim)
+
         enc_image_size = encoder_out.size(1)
         encoder_dim = encoder_out.size(3)
 
@@ -120,12 +128,24 @@ def evaluate(beam_size):
                 # Unroll and find top scores, and their unrolled indices
                 top_k_scores, top_k_words = scores.view(-1).topk(k, 0, True, True)  # (s)
 
+            # TODO
             # Convert unrolled indices to actual indices of scores
-            prev_word_inds = top_k_words / vocab_size  # (s)
+            # prev_word_inds = top_k_words / vocab_size  # (s)
+            # next_word_inds = top_k_words % vocab_size  # (s)
+            prev_word_inds = top_k_words.long() / vocab_size  # (s)
+            next_word_inds = top_k_words.long() % vocab_size  # (s)
+
+            prev_word_inds = top_k_words // vocab_size  # (s)
             next_word_inds = top_k_words % vocab_size  # (s)
 
+            # 添加边界检查
+            prev_word_inds = torch.clamp(prev_word_inds, max=vocab_size - 1)
+            next_word_inds = torch.clamp(next_word_inds, max=vocab_size - 1)
+
+            # TODO
             # Add new words to sequences
-            seqs = torch.cat([seqs[prev_word_inds], next_word_inds.unsqueeze(1)], dim=1)  # (s, step+1)
+            # seqs = torch.cat([seqs[prev_word_inds], next_word_inds.unsqueeze(1)], dim=1)  # (s, step+1)
+            seqs = torch.cat([seqs[prev_word_inds.long()], next_word_inds.unsqueeze(1).long()], dim=1)
 
             # Which sequences are incomplete (didn't reach <end>)?
             incomplete_inds = [ind for ind, next_word in enumerate(next_word_inds) if
@@ -142,7 +162,10 @@ def evaluate(beam_size):
             if k == 0:
                 break
             seqs = seqs[incomplete_inds]
-            h = h[prev_word_inds[incomplete_inds]]
+            # TODO
+            # h = h[prev_word_inds[incomplete_inds]]
+            h = h[prev_word_inds.long()[incomplete_inds]]
+
             c = c[prev_word_inds[incomplete_inds]]
             encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
             top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
@@ -153,8 +176,16 @@ def evaluate(beam_size):
                 break
             step += 1
 
-        i = complete_seqs_scores.index(max(complete_seqs_scores))
-        seq = complete_seqs[i]
+        if len(complete_seqs_scores) > 0:
+            i = complete_seqs_scores.index(max(complete_seqs_scores))
+            seq = complete_seqs[i]
+            # 其他处理完整序列的逻辑
+        else:
+            # 处理没有完整序列的情况
+            print("No complete sequences generated.")
+
+        # i = complete_seqs_scores.index(max(complete_seqs_scores))
+        # seq = complete_seqs[i]
 
         # References
         img_caps = allcaps[0].tolist()

@@ -60,6 +60,8 @@ Counter({'a': 112, 'in': 52, 'A': 42, 'on': 36, 'the': 28, 'of': 27})
 # $HDF5
 """
 images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
+images 每行存了一张图片
+
 impaths:[
 'D:\\_01_python\\Image-Captioning\\dataset\\
 short_flickr30k_images_datasets\\short_flickr30k_images_datasets\\1000092795.jpg', 

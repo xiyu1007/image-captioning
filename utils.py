@@ -84,17 +84,17 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
     word_map['<end>'] = len(word_map) + 1
     word_map['<pad>'] = 0
 
-    # Create a base/root name for all output files
+    # 为所有输出文件创建基本/根名称
     base_filename = dataset + '_' + str(captions_per_image) + '_cap_per_img_' + str(min_word_freq) + '_min_word_freq'
     output_json_path = \
         pathchecker.check_and_create_filename(os.path.join(output_folder, 'WORDMAP_' + base_filename), 'json')
 
-    # Save word map to a JSON
+    # 将词映射保存为 JSON
     with open(output_json_path, 'w') as j:
         json.dump(word_map, j)
-        print(Fore.BLUE + f"Success: JSON file created ==> {output_json_path}")
+        print(Fore.BLUE + f"成功：已创建 JSON 文件 ==> {output_json_path}")
 
-    # Sample captions for each image, save images to HDF5 file, and captions and their lengths to JSON files
+    # 为每张图像获取样本描述，并将图像保存到 HDF5 文件，描述及其长度保存到 JSON 文件
     seed(123)
     for impaths, imcaps, split in [(train_image_paths, train_image_captions, 'TRAIN'),
                                    (val_image_paths, val_image_captions, 'VAL'),
@@ -114,51 +114,50 @@ def create_input_files(dataset, karpathy_json_path, image_folder, captions_per_i
         """
 
         with h5py.File(os.path.join(output_folder, split + '_IMAGES_' + base_filename + '.hdf5'), 'w') as h:
-            # Make a note of the number of captions we are sampling per image
+            # 记录我们每张图像采样的描述数量
             h.attrs['captions_per_image'] = captions_per_image
 
-            # Create dataset inside HDF5 file to store images
-            # $
+            # 在 HDF5 文件中创建数据集以存储图像
             images = h.create_dataset('images', (len(impaths), 3, 256, 256), dtype='uint8')
 
-            print("\nReading %s images and captions, storing to file...\n" % split)
+            print("\n正在读取 %s 图像和描述，存储到文件中...\n" % split)
             time.sleep(0.01)
             enc_captions = []
             caplens = []
 
-            for i, path in enumerate(tqdm(impaths, desc="Image-Processing")):
-                # Sample captions
+            for i, path in enumerate(tqdm(impaths, desc="图像处理")):
+                # 采样描述
                 if len(imcaps[i]) < captions_per_image:
-                    # If the number of existing captions for this image is less than captions_per_image,
-                    # sample additional captions by randomly choosing from the existing captions.
+                    # 如果此图像的现有描述数量少于 captions_per_image，
+                    # 通过从现有描述中随机选择来采样额外的描述。
                     captions = imcaps[i] + [choice(imcaps[i]) for _ in range(captions_per_image - len(imcaps[i]))]
                 else:
-                    # If the number of existing captions for this image is equal to or greater than captions_per_image,
-                    # sample captions by randomly selecting captions from the existing list.
+                    # 如果此图像的现有描述数量等于或大于 captions_per_image，
+                    # 通过从现有列表中随机选择描述来采样描述。
                     captions = sample(imcaps[i], k=captions_per_image)
 
-                # Sanity check
+                # 断言检查
                 assert len(captions) == captions_per_image
 
-                # Read images using cv2
+                # 使用 cv2 读取图像
                 img = cv2.imread(impaths[i])
 
-                # Convert BGR to RGB if needed
+                # 如果需要，将 BGR 转换为 RGB
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-                # Check if the image is grayscale (2D), if yes, convert it to RGB (3D)
+                # 检查图像是否为灰度图（2D），如果是，将其转换为 RGB（3D）
                 if len(img.shape) == 2:
                     img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
-                # Resize the image to (256, 256)
+                # 将图像调整为 (256, 256)
                 img = cv2.resize(img, (256, 256))
 
-                # Transpose the dimensions to have the channel dimension as the first dimension
+                # 转置维度以将通道维度放在第一个维度
                 #  (height, width, channels) ==> (channels, height, width)
                 img = np.transpose(img, (2, 0, 1))
                 assert img.shape == (3, 256, 256)
                 assert np.max(img) <= 255
-                # Save image to HDF5 file
+                # 将图像保存到 HDF5 文件中
                 images[i] = img
 
                 for j, c in enumerate(captions):
@@ -264,6 +263,8 @@ def save_checkpoint(data_name, epoch, epochs_since_improvement, encoder, decoder
     :param bleu4: validation BLEU-4 score for this epoch
     :param is_best: is this checkpoint the best so far?
     """
+
+    pathchecker = PathChecker()
     state = {'epoch': epoch,
              'epochs_since_improvement': epochs_since_improvement,
              'bleu-4': bleu4,
@@ -272,10 +273,12 @@ def save_checkpoint(data_name, epoch, epochs_since_improvement, encoder, decoder
              'encoder_optimizer': encoder_optimizer,
              'decoder_optimizer': decoder_optimizer}
     filename = 'checkpoint_' + data_name + '.pth.tar'
-    torch.save(state, filename)
+    file_path = pathchecker.process_path('./out_data/save_model/'+filename)
+    torch.save(state, file_path)
     # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
     if is_best:
-        torch.save(state, 'BEST_' + filename)
+        file_path = pathchecker.process_path('./out_data/save_model/'+'BEST_' + filename)
+        torch.save(state, file_path)
 
 
 class AverageMeter(object):
@@ -385,11 +388,10 @@ class PathChecker:
         if path.startswith('..'):
             if path.startswith('..'):
                 parent_directory = os.path.dirname(self.current_directory)
-                processed_path = os.path.join(parent_directory, path.lstrip('..\\'))
+                processed_path = os.path.join(parent_directory, path.lstrip('..\\/'))
         # 如果路径以 "." 开头，则去除路径开头的点再拼接
         elif path.startswith('.'):
-            processed_path = os.path.join(self.current_directory, path.lstrip('.\\'))
+            processed_path = os.path.join(self.current_directory, path.lstrip('.\\/'))
         else:
             processed_path = os.path.join(self.current_directory, path)
-
         return os.path.normpath(processed_path)

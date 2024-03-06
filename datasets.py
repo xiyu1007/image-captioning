@@ -4,6 +4,10 @@ import h5py
 import json
 import os
 
+from colorama import init, Fore
+
+# 初始化 colorama 库以兼容 Windows 和其他平台
+init()
 
 class CaptionDataset(Dataset):
     """
@@ -54,9 +58,7 @@ class CaptionDataset(Dataset):
         img = torch.FloatTensor(self.imgs[i // self.cpi] / 255.)
         if self.transform is not None:
             img = self.transform(img)
-
         caption = torch.LongTensor(self.captions[i])
-
         caplen = torch.LongTensor([self.caplens[i]])
 
         if self.split == 'TRAIN':
