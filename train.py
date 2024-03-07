@@ -33,9 +33,9 @@ cudnn.benchmark = True  # set to true only if inputs to model are fixed size; ot
 # Training parameters
 # 训练参数
 start_epoch = 0  # 开始的训练轮次
-epochs = 1  # 训练的总轮次
+epochs = 3  # 训练的总轮次
 epochs_since_improvement = 0  # 自上次在验证集上取得改进以来的轮次数，用于提前停止
-batch_size = 1  # 32 每个训练批次中的样本数
+batch_size = 10  # 32 每个训练批次中的样本数
 workers = 0  # 数据加载的工作进程数 num_workers参数设置为0，这将使得数据加载在主进程中进行，而不使用多进程。
 # 这个错误是由于h5py对象无法被序列化（pickled）引起的。
 # 在使用多进程（multiprocessing）加载数据时，数据加载器（DataLoader）会尝试对每个批次的数据进行序列化，以便在不同的进程中传递。
@@ -220,89 +220,79 @@ def train(train_loader, encoder, decoder, criterion, encoder_optimizer, decoder_
         imgs = encoder(imgs)
 
         scores, caps_sorted, decode_lengths, alphas, sort_ind = decoder(imgs, caps, caplens)
-        break
+
+        """
+        预测分数 (predictions)：
+        大小为 (batch_size, max(decode_lengths), vocab_size)。
+        表示模型对词汇表中每个单词的预测分数。
+        排序后的编码字幕 (encoded_captions)：
+        大小为 (batch_size, max_caption_length)。
+        表示输入的编码字幕，按照字幕长度降序排列。
+        解码长度 (decode_lengths)：
+        一个包含每个样本对应的解码长度的列表，大小为 (batch_size,)。
+        表示每个样本生成字幕的实际长度。
+        注意力权重 (alphas)：
+        大小为 (batch_size, max(decode_lengths), num_pixels)。
+        表示模型在生成每个词时对输入图像中不同部分的关注程度。
+        排序索引 (sort_ind)：
+        大小为 (batch_size,)。
+        表示对输入数据按字幕长度降序排列后的索引。
+        """
+        # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
+        targets = caps_sorted[:, 1:]  # torch.Size([32, 51])
+
+        # TODO
+        # Remove timesteps that we didn't decode at, or are pads
+        # pack_padded_sequence is an easy trick to do this
+        # torch.Size([32, 20, 506])
+        scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data
+        targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data
 
 
-
-        #
-        # """
-        # 预测分数 (predictions)：
-        # 大小为 (batch_size, max(decode_lengths), vocab_size)。
-        # 表示模型对词汇表中每个单词的预测分数。
-        # 排序后的编码字幕 (encoded_captions)：
-        # 大小为 (batch_size, max_caption_length)。
-        # 表示输入的编码字幕，按照字幕长度降序排列。
-        # 解码长度 (decode_lengths)：
-        # 一个包含每个样本对应的解码长度的列表，大小为 (batch_size,)。
-        # 表示每个样本生成字幕的实际长度。
-        # 注意力权重 (alphas)：
-        # 大小为 (batch_size, max(decode_lengths), num_pixels)。
-        # 表示模型在生成每个词时对输入图像中不同部分的关注程度。
-        # 排序索引 (sort_ind)：
-        # 大小为 (batch_size,)。
-        # 表示对输入数据按字幕长度降序排列后的索引。
-        # """
-        # # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
-        # targets = caps_sorted[:, 1:]  # torch.Size([32, 51])
-        #
-        # # TODO
-        # # Remove timesteps that we didn't decode at, or are pads
-        # # pack_padded_sequence is an easy trick to do this
-        # # torch.Size([32, 20, 506])
-        # scores = pack_padded_sequence(scores, decode_lengths, batch_first=True)
-        # targets = pack_padded_sequence(targets, decode_lengths, batch_first=True)
-        #
-        # # Unpack PackedSequence
-        # scores, _ = pad_packed_sequence(scores, batch_first=True)
-        # targets, _ = pad_packed_sequence(targets, batch_first=True)
-        #
-        # # 将 scores 和 targets 的形状调整为适当的尺寸
-        # # 将 scores 和 targets 的形状调整为适当的尺寸
         # scores = scores.reshape(-1, 506)
         # targets = targets.reshape(-1)
-        #
-        # # END TODO
-        #
-        # # Calculate loss
-        # loss = criterion(scores, targets)
-        # # Add doubly stochastic attention regularization
-        # loss += alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
-        #
-        # # Back prop.
-        # decoder_optimizer.zero_grad()
-        # if encoder_optimizer is not None:
-        #     encoder_optimizer.zero_grad()
-        # loss.backward()
-        #
-        # # Clip gradients
-        # if grad_clip is not None:
-        #     clip_gradient(decoder_optimizer, grad_clip)
-        #     if encoder_optimizer is not None:
-        #         clip_gradient(encoder_optimizer, grad_clip)
-        #
-        # # Update weights
-        # decoder_optimizer.step()
-        # if encoder_optimizer is not None:
-        #     encoder_optimizer.step()
-        #
-        # # Keep track of metrics
-        # top5 = accuracy(scores, targets, 5)
-        # losses.update(loss.item(), sum(decode_lengths))
-        # top5accs.update(top5, sum(decode_lengths))
-        # batch_time.update(time.time() - start)
-        #
-        # start = time.time()
-        #
-        # # Print status
-        # if i % print_freq == 0:
-        #     print('Epoch: [{0}][{1}/{2}]\t'
-        #           'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-        #           'Data Load Time {data_time.val:.3f} ({data_time.avg:.3f})\t'
-        #           'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-        #           'Top-5 Accuracy {top5.val:.3f} ({top5.avg:.3f})'.format(epoch, i, len(train_loader),
-        #                                                                   batch_time=batch_time,
-        #                                                                   data_time=data_time, loss=losses,
-        #                                                                   top5=top5accs))
+
+        # END TODO
+        # Calculate loss
+        loss = criterion(scores, targets)
+        # Add doubly stochastic attention regularization
+        loss += alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+
+        # Back prop.
+        decoder_optimizer.zero_grad()
+        if encoder_optimizer is not None:
+            encoder_optimizer.zero_grad()
+        loss.backward()
+
+        # Clip gradients
+        if grad_clip is not None:
+            clip_gradient(decoder_optimizer, grad_clip)
+            if encoder_optimizer is not None:
+                clip_gradient(encoder_optimizer, grad_clip)
+
+        # Update weights
+        decoder_optimizer.step()
+        if encoder_optimizer is not None:
+            encoder_optimizer.step()
+
+        # Keep track of metrics
+        top5 = accuracy(scores, targets, 5)
+        losses.update(loss.item(), sum(decode_lengths))
+        top5accs.update(top5, sum(decode_lengths))
+        batch_time.update(time.time() - start)
+
+        start = time.time()
+
+        # Print status
+        if i % print_freq == 0:
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Data Load Time {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'Top-5 Accuracy {top5.val:.3f} ({top5.avg:.3f})'.format(epoch, i, len(train_loader),
+                                                                          batch_time=batch_time,
+                                                                          data_time=data_time, loss=losses,
+                                                                          top5=top5accs))
 
 def validate(val_loader, encoder, decoder, criterion):
     """
