@@ -33,9 +33,9 @@ cudnn.benchmark = True  # set to true only if inputs to model are fixed size; ot
 # Training parameters
 # 训练参数
 start_epoch = 0  # 开始的训练轮次
-epochs = 3  # 训练的总轮次
+epochs = 1  # 训练的总轮次
 epochs_since_improvement = 0  # 自上次在验证集上取得改进以来的轮次数，用于提前停止
-batch_size = 10  # 32 每个训练批次中的样本数
+batch_size = 25  # 32 每个训练批次中的样本数
 workers = 0  # 数据加载的工作进程数 num_workers参数设置为0，这将使得数据加载在主进程中进行，而不使用多进程。
 # 这个错误是由于h5py对象无法被序列化（pickled）引起的。
 # 在使用多进程（multiprocessing）加载数据时，数据加载器（DataLoader）会尝试对每个批次的数据进行序列化，以便在不同的进程中传递。
@@ -157,24 +157,24 @@ def main():
               decoder_optimizer=decoder_optimizer,
               epoch=epoch)
 
-        # # One epoch's validation
-        # recent_bleu4 = validate(val_loader=val_loader,
-        #                         encoder=encoder,
-        #                         decoder=decoder,
-        #                         criterion=criterion)
-        #
-        # # Check if there was an improvement
-        # is_best = recent_bleu4 > best_bleu4
-        # best_bleu4 = max(recent_bleu4, best_bleu4)
-        # if not is_best:
-        #     epochs_since_improvement += 1
-        #     print("\nEpochs since last improvement: %d\n" % (epochs_since_improvement,))
-        # else:
-        #     epochs_since_improvement = 0
-        #
-        # # Save checkpoint
-        # save_checkpoint(data_name, epoch, epochs_since_improvement, encoder, decoder, encoder_optimizer,
-        #                 decoder_optimizer, recent_bleu4, is_best)
+        # One epoch's validation
+        recent_bleu4 = validate(val_loader=val_loader,
+                                encoder=encoder,
+                                decoder=decoder,
+                                criterion=criterion)
+
+        # Check if there was an improvement
+        is_best = recent_bleu4 > best_bleu4
+        best_bleu4 = max(recent_bleu4, best_bleu4)
+        if not is_best:
+            epochs_since_improvement += 1
+            print("\nEpochs since last improvement: %d\n" % (epochs_since_improvement,))
+        else:
+            epochs_since_improvement = 0
+
+        # Save checkpoint
+        save_checkpoint(data_name, epoch, epochs_since_improvement, encoder, decoder, encoder_optimizer,
+                        decoder_optimizer, recent_bleu4, is_best)
 
 
 def train(train_loader, encoder, decoder, criterion, encoder_optimizer, decoder_optimizer, epoch):
@@ -344,17 +344,8 @@ def validate(val_loader, encoder, decoder, criterion):
             # Remove timesteps that we didn't decode at, or are pads
             # pack_padded_sequence is an easy trick to do this
             # torch.Size([32, 20, 506])
-            scores = pack_padded_sequence(scores, decode_lengths, batch_first=True)
-            targets = pack_padded_sequence(targets, decode_lengths, batch_first=True)
-
-            # Unpack PackedSequence
-            scores, _ = pad_packed_sequence(scores, batch_first=True)
-            targets, _ = pad_packed_sequence(targets, batch_first=True)
-
-            # 将 scores 和 targets 的形状调整为适当的尺寸
-            # 将 scores 和 targets 的形状调整为适当的尺寸
-            scores = scores.reshape(-1, 506)
-            targets = targets.reshape(-1)
+            scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data
+            targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data
 
             # END TODO
 
