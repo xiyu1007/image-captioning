@@ -8,12 +8,16 @@ import skimage.transform
 # import argparse
 import cv2
 from PIL import Image
+import matplotlib
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+matplotlib.use('TkAgg')
+
 from colorama import init, Fore
 
 # 初始化 colorama 库以兼容 Windows 和其他平台
 init()
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def caption_image_beam_search(encoder, decoder, image_path, word_map, beam_size=3):
@@ -157,21 +161,31 @@ def caption_image_beam_search(encoder, decoder, image_path, word_map, beam_size=
             """
 
             top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)  # (s)
-            print(Fore.BLUE + str(scores.shape))
-            print(Fore.BLUE + str(top_k_scores.shape))
-            print(Fore.RED + str(scores))
-            print(Fore.RED + str(top_k_scores))
+            # print(Fore.BLUE + str(scores.shape))
+            # print(Fore.BLUE + str(top_k_scores.shape))
+            # print(Fore.RED + str(scores))
+            # print(Fore.RED + str(top_k_scores))
 
         else:
             # Unroll and find top scores, and their unrolled indices
             top_k_scores, top_k_words = scores.view(-1).topk(k, 0, True, True)  # (s)
 
         # Convert unrolled indices to actual indices of scores
-        prev_word_inds = top_k_words / vocab_size  # (s)
+
+        # prev_word_inds = top_k_words / vocab_size  # (s)
+        # next_word_inds = top_k_words % vocab_size  # (s)
+
+        prev_word_inds = torch.div(top_k_words, vocab_size, rounding_mode='floor')  # (s)
         next_word_inds = top_k_words % vocab_size  # (s)
 
-        print(Fore.BLUE + str(prev_word_inds.shape))
-        print(Fore.RED + str(next_word_inds.shape))
+        # print(Fore.BLUE + str(prev_word_inds.shape))
+        # print(Fore.YELLOW + str(next_word_inds.shape))
+        # print(Fore.BLUE + str(prev_word_inds))
+        # print(Fore.YELLOW + str(next_word_inds))
+        # print(Fore.BLUE + str(seqs[prev_word_inds].shape))
+        # print(Fore.YELLOW + str(seqs[prev_word_inds]))
+        # print(Fore.BLUE + str(next_word_inds.unsqueeze(1).shape))
+        # print(Fore.YELLOW + str(next_word_inds.unsqueeze(1)))
 
         # Add new words to sequences, alphas
 
@@ -234,10 +248,12 @@ def visualize_att(image_path, seq, alphas, rev_word_map, smooth=True):
     for t in range(len(words)):
         if t > 50:
             break
-        plt.subplot(np.ceil(len(words) / 5.), 5, t + 1)
+        # plt.subplot(np.ceil(len(words) / 5.), 5, t + 1)
+        plt.subplot(int(np.ceil(len(words) / 5.)), 5, t + 1)
 
         plt.text(0, 1, '%s' % (words[t]), color='black', backgroundcolor='white', fontsize=12)
         plt.imshow(image)
+
         current_alpha = alphas[t, :]
         if smooth:
             alpha = skimage.transform.pyramid_expand(current_alpha.numpy(), upscale=24, sigma=8)
@@ -254,8 +270,8 @@ def visualize_att(image_path, seq, alphas, rev_word_map, smooth=True):
 
 if __name__ == '__main__':
     # 设置参数
-    model_path = './out_data/save_model/BEST_checkpoint_flickr30k_5_cap_per_img_5_min_word_freq.pth.tar'  # 模型路径
-    img_path = 'dataset/img/img.png'  # 图像路径
+    model_path = './out_data/save_model/checkpoint_flickr30k_5_cap_per_img_5_min_word_freq.pth.tar'  # 模型路径
+    img_path = 'dataset/flickr8k/images/667626_18933d713e.jpg'  # 图像路径
     word_map_path = 'out_data/img_json_hdf5/WORDMAP_flickr30k_5_cap_per_img_5_min_word_freq.json'  # 单词映射 JSON 路径
     beam_size = 5  # beam search 的 beam 大小
     smooth = True  # 是否进行 alpha 叠加平滑
